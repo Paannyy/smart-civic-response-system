@@ -7,6 +7,8 @@ from app.models.complaint import Complaint
 from app.models.user import User
 from app.schemas.complaint import ComplaintCreate, ComplaintResponse
 from typing import List
+from app.api.permissions import require_role
+from app.schemas.complaint import ComplaintStatusUpdate
 
 
 router = APIRouter(
@@ -81,5 +83,37 @@ def get_my_complaint(
             status_code=404,
             detail="Complaint not found",
         )
+
+    return complaint
+@router.patch(
+    "/{complaint_id}/status",
+    response_model=ComplaintResponse,
+)
+def update_complaint_status(
+    complaint_id: int,
+    status_data: ComplaintStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_role("authority", "admin")
+    ),
+):
+    complaint = (
+        db.query(Complaint)
+        .filter(Complaint.id == complaint_id)
+        .first()
+    )
+
+    if complaint is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=404,
+            detail="Complaint not found",
+        )
+
+    complaint.status = status_data.status
+
+    db.commit()
+    db.refresh(complaint)
 
     return complaint

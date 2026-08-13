@@ -25,3 +25,5 @@ class ComplaintResponse(BaseModel):
     model_config = {
         "from_attributes": True
     }
+class ComplaintStatusUpdate(BaseModel):
+    status: str
