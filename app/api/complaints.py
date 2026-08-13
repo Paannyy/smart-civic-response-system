@@ -6,6 +6,7 @@ from app.db.dependencies import get_db
 from app.models.complaint import Complaint
 from app.models.user import User
 from app.schemas.complaint import ComplaintCreate, ComplaintResponse
+from typing import List
 
 
 router = APIRouter(
@@ -36,5 +37,49 @@ def create_complaint(
     db.add(complaint)
     db.commit()
     db.refresh(complaint)
+
+    return complaint
+
+@router.get(
+    "/",
+    response_model=List[ComplaintResponse],
+)
+def get_my_complaints(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    complaints = (
+        db.query(Complaint)
+        .filter(Complaint.citizen_id == current_user.id)
+        .all()
+    )
+
+    return complaints
+
+@router.get(
+    "/{complaint_id}",
+    response_model=ComplaintResponse,
+)
+def get_my_complaint(
+    complaint_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    complaint = (
+        db.query(Complaint)
+        .filter(
+            Complaint.id == complaint_id,
+            Complaint.citizen_id == current_user.id,
+        )
+        .first()
+    )
+
+    if complaint is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=404,
+            detail="Complaint not found",
+        )
 
     return complaint
