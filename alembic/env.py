@@ -5,6 +5,7 @@ from sqlalchemy import pool
 
 from app.db.database import Base, Settings, engine
 from app.models.user import User
+from app.models.complaint import Complaint
 
 
 # Alembic Config object
