@@ -1,6 +1,8 @@
 from datetime import datetime
+from pydantic import BaseModel, ConfigDict
 
 from pydantic import BaseModel, Field
+from typing import Literal
 
 
 class ComplaintCreate(BaseModel):
@@ -25,8 +27,24 @@ class ComplaintResponse(BaseModel):
     model_config = {
         "from_attributes": True
     }
+
+
 class ComplaintStatusUpdate(BaseModel):
-    status: str
+    status: Literal[
+        "pending",
+        "assigned",
+        "in_progress",
+        "resolved",
+    ]
     
 class ComplaintAssignment(BaseModel):
     authority_id: int
+
+class ComplaintHistoryResponse(BaseModel):
+    id: int
+    complaint_id: int
+    status: str
+    changed_by: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

@@ -11,6 +11,8 @@ from app.api.permissions import require_role
 from app.schemas.complaint import ComplaintStatusUpdate
 from fastapi import HTTPException
 from app.schemas.complaint import ComplaintAssignment
+from app.models.complaint_history import ComplaintStatusHistory
+from app.schemas.complaint import ComplaintHistoryResponse
 
 
 router = APIRouter(
@@ -59,6 +61,25 @@ def get_my_complaints(
     )
 
     return complaints
+@router.get(
+    "/assigned",
+    response_model=List[ComplaintResponse],
+)
+def get_assigned_complaints(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_role("authority", "admin")
+    ),
+):
+    complaints = (
+        db.query(Complaint)
+        .filter(
+            Complaint.assigned_authority_id == current_user.id
+        )
+        .all()
+    )
+
+    return complaints
 
 @router.get(
     "/{complaint_id}",
@@ -87,6 +108,52 @@ def get_my_complaint(
         )
 
     return complaint
+
+@router.get(
+    "/{complaint_id}/history",
+    response_model=List[ComplaintHistoryResponse],
+)
+def get_complaint_history(
+    complaint_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    complaint = (
+        db.query(Complaint)
+        .filter(Complaint.id == complaint_id)
+        .first()
+    )
+
+    if complaint is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Complaint not found",
+        )
+
+    if current_user.role == "admin":
+        allowed = True
+    elif current_user.role == "authority":
+        allowed = complaint.assigned_authority_id == current_user.id
+    else:
+        allowed = complaint.citizen_id == current_user.id
+
+    if not allowed:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not allowed to view this complaint history",
+        )
+
+    history = (
+        db.query(ComplaintStatusHistory)
+        .filter(
+            ComplaintStatusHistory.complaint_id == complaint_id
+        )
+        .order_by(ComplaintStatusHistory.created_at.asc())
+        .all()
+    )
+
+    return history
+
 @router.patch(
     "/{complaint_id}/status",
     response_model=ComplaintResponse,
@@ -121,6 +188,14 @@ def update_complaint_status(
         )
 
     complaint.status = status_data.status
+
+    history = ComplaintStatusHistory(
+        complaint_id=complaint.id,
+        status=status_data.status,
+        changed_by=current_user.id,
+    )
+
+    db.add(history)
 
     db.commit()
     db.refresh(complaint)
