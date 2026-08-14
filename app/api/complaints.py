@@ -9,6 +9,8 @@ from app.schemas.complaint import ComplaintCreate, ComplaintResponse
 from typing import List
 from app.api.permissions import require_role
 from app.schemas.complaint import ComplaintStatusUpdate
+from fastapi import HTTPException
+from app.schemas.complaint import ComplaintAssignment
 
 
 router = APIRouter(
@@ -104,11 +106,18 @@ def update_complaint_status(
     )
 
     if complaint is None:
-        from fastapi import HTTPException
-
         raise HTTPException(
             status_code=404,
             detail="Complaint not found",
+        )
+
+    if (
+        current_user.role == "authority"
+        and complaint.assigned_authority_id != current_user.id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Complaint is not assigned to you",
         )
 
     complaint.status = status_data.status

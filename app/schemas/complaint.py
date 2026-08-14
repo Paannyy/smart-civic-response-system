@@ -27,3 +27,6 @@ class ComplaintResponse(BaseModel):
     }
 class ComplaintStatusUpdate(BaseModel):
     status: str
+    
+class ComplaintAssignment(BaseModel):
+    authority_id: int
