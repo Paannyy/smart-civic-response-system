@@ -1,13 +1,13 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 
 from app.api.permissions import require_role
 from app.db.dependencies import get_db
 from app.models.user import User
-from app.schemas.user import UserResponse
+from app.models.complaint import Complaint
 from app.schemas.user import UserResponse, UserStatusUpdate
-from fastapi import APIRouter, Depends, HTTPException
+from app.schemas.complaint import ComplaintResponse
 
 
 router = APIRouter(
@@ -31,6 +31,7 @@ def get_all_users(
     )
 
     return users
+
 
 @router.patch(
     "/users/{user_id}/status",
@@ -60,3 +61,20 @@ def update_user_status(
     db.refresh(user)
 
     return user
+
+
+@router.get(
+    "/complaints",
+    response_model=List[ComplaintResponse],
+)
+def get_all_complaints(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    complaints = (
+        db.query(Complaint)
+        .order_by(Complaint.id.asc())
+        .all()
+    )
+
+    return complaints

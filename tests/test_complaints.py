@@ -553,3 +553,78 @@ def test_inactive_user_cannot_access_protected_endpoint(client, db):
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Inactive user"
+
+def test_admin_can_view_all_complaints(client, db):
+    admin = User(
+        name="Complaint Admin",
+        email="complaintadmin@example.com",
+        password_hash=hash_password("password123"),
+        role="admin",
+        is_active=True,
+    )
+
+    citizen = User(
+        name="Complaint Citizen",
+        email="admincomplaintcitizen@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    db.add_all([admin, citizen])
+    db.commit()
+
+    complaint = Complaint(
+        title="Test complaint",
+        description="This is a test complaint for admin access.",
+        category="garbage",
+        priority="medium",
+        status="pending",
+        citizen_id=citizen.id,
+    )
+
+    db.add(complaint)
+    db.commit()
+
+    token = create_access_token({"sub": str(admin.id)})
+
+    response = client.get(
+        "/admin/complaints",
+        headers={
+            "Authorization": f"Bearer {token}"
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]["title"] == "Test complaint"
+    assert data[0]["status"] == "pending"
+
+
+def test_citizen_cannot_view_all_complaints(client, db):
+    citizen = User(
+        name="Blocked Citizen",
+        email="blockedadmincomplaints@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    db.add(citizen)
+    db.commit()
+    db.refresh(citizen)
+
+    token = create_access_token({"sub": str(citizen.id)})
+
+    response = client.get(
+        "/admin/complaints",
+        headers={
+            "Authorization": f"Bearer {token}"
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Insufficient permissions"
