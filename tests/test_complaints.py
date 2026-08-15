@@ -628,3 +628,94 @@ def test_citizen_cannot_view_all_complaints(client, db):
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Insufficient permissions"
+
+def test_admin_can_filter_complaints_by_status(client, db):
+    admin = User(
+        name="Filter Admin",
+        email="filteradmin@example.com",
+        password_hash=hash_password("password123"),
+        role="admin",
+        is_active=True,
+    )
+
+    citizen = User(
+        name="Filter Citizen",
+        email="filtercitizen@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    db.add_all([admin, citizen])
+    db.commit()
+
+    complaint = Complaint(
+        title="Garbage complaint",
+        description="Garbage collection is delayed in this area.",
+        category="garbage",
+        priority="medium",
+        status="resolved",
+        citizen_id=citizen.id,
+    )
+
+    db.add(complaint)
+    db.commit()
+
+    token = create_access_token({"sub": str(admin.id)})
+
+    response = client.get(
+        "/admin/complaints?status_filter=resolved",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]["status"] == "resolved"
+
+
+def test_admin_can_filter_complaints_by_category(client, db):
+    admin = User(
+        name="Category Admin",
+        email="categoryadmin@example.com",
+        password_hash=hash_password("password123"),
+        role="admin",
+        is_active=True,
+    )
+
+    citizen = User(
+        name="Category Citizen",
+        email="categorycitizen@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    db.add_all([admin, citizen])
+    db.commit()
+
+    complaint = Complaint(
+        title="Garbage complaint",
+        description="Garbage collection is delayed in this area.",
+        category="garbage",
+        priority="medium",
+        status="resolved",
+        citizen_id=citizen.id,
+    )
+
+    db.add(complaint)
+    db.commit()
+
+    token = create_access_token({"sub": str(admin.id)})
+
+    response = client.get(
+        "/admin/complaints?category=garbage",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]["category"] == "garbage"

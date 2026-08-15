@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from app.api.permissions import require_role
 from app.db.dependencies import get_db
@@ -68,11 +68,31 @@ def update_user_status(
     response_model=List[ComplaintResponse],
 )
 def get_all_complaints(
+    status_filter: Optional[str] = None,
+    category: Optional[str] = None,
+    priority: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("admin")),
 ):
+    query = db.query(Complaint)
+
+    if status_filter:
+        query = query.filter(
+            Complaint.status == status_filter
+        )
+
+    if category:
+        query = query.filter(
+            Complaint.category == category
+        )
+
+    if priority:
+        query = query.filter(
+            Complaint.priority == priority
+        )
+
     complaints = (
-        db.query(Complaint)
+        query
         .order_by(Complaint.id.asc())
         .all()
     )
