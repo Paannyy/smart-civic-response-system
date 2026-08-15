@@ -1150,3 +1150,125 @@ def test_citizen_cannot_view_assigned_complaints(client, db):
     )
 
     assert response.status_code == 403
+
+def test_admin_can_assign_complaint_to_matching_department(client, db):
+    admin = User(
+        name="Test Admin",
+        email="testadminassignment@example.com",
+        password_hash=hash_password("password123"),
+        role="admin",
+        is_active=True,
+    )
+
+    authority = User(
+        name="Sanitation Authority",
+        email="sanitationassignment@example.com",
+        password_hash=hash_password("password123"),
+        role="authority",
+        department="sanitation",
+        is_active=True,
+    )
+
+    citizen = User(
+        name="Assignment Citizen",
+        email="assignmentcitizen@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    db.add_all([admin, authority, citizen])
+    db.commit()
+
+    complaint = Complaint(
+        title="Garbage problem",
+        description="Garbage has not been collected.",
+        category="garbage",
+        priority="medium",
+        status="pending",
+        citizen_id=citizen.id,
+    )
+
+    db.add(complaint)
+    db.commit()
+    db.refresh(complaint)
+
+    token = create_access_token({"sub": str(admin.id)})
+
+    response = client.patch(
+        f"/complaints/{complaint.id}/assign",
+        headers={
+            "Authorization": f"Bearer {token}"
+        },
+        json={
+            "authority_id": authority.id
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["status"] == "assigned"
+    assert data["assigned_authority_id"] == authority.id
+
+def test_admin_cannot_assign_complaint_to_wrong_department(client, db):
+    admin = User(
+        name="Test Admin Wrong Department",
+        email="testadminwrongdept@example.com",
+        password_hash=hash_password("password123"),
+        role="admin",
+        is_active=True,
+    )
+
+    authority = User(
+        name="Electrical Authority",
+        email="electricalwrongdept@example.com",
+        password_hash=hash_password("password123"),
+        role="authority",
+        department="electrical",
+        is_active=True,
+    )
+
+    citizen = User(
+        name="Wrong Department Citizen",
+        email="wrongdepartmentcitizen@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    db.add_all([admin, authority, citizen])
+    db.commit()
+
+    complaint = Complaint(
+        title="Garbage problem",
+        description="Garbage has not been collected.",
+        category="garbage",
+        priority="medium",
+        status="pending",
+        citizen_id=citizen.id,
+    )
+
+    db.add(complaint)
+    db.commit()
+    db.refresh(complaint)
+
+    token = create_access_token({"sub": str(admin.id)})
+
+    response = client.patch(
+        f"/complaints/{complaint.id}/assign",
+        headers={
+            "Authorization": f"Bearer {token}"
+        },
+        json={
+            "authority_id": authority.id
+        },
+    )
+
+    assert response.status_code == 400
+
+    assert response.json()["detail"] == (
+        "Authority department does not match "
+        "complaint category: garbage"
+    )

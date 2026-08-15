@@ -17,8 +17,10 @@ from app.schemas.complaint import (
     ComplaintAssignment,
     ComplaintHistoryResponse,
 )
-from app.services.complaint_assignment import auto_assign_complaint
-
+from app.services.complaint_assignment import (
+    auto_assign_complaint,
+    CATEGORY_TO_DEPARTMENT,
+)
 ALLOWED_STATUS_TRANSITIONS = {
     "pending": {"assigned"},
     "assigned": {"in_progress"},
@@ -243,7 +245,21 @@ def assign_complaint(
             status_code=404,
             detail="Authority not found",
         )
+    expected_department = CATEGORY_TO_DEPARTMENT.get(
+    complaint.category
+    )
 
+    if (
+        expected_department is not None
+        and authority.department != expected_department
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Authority department does not match "
+                f"complaint category: {complaint.category}"
+            ),
+        )
     complaint.assigned_authority_id = authority.id
     complaint.status = "assigned"
 
@@ -257,6 +273,8 @@ def assign_complaint(
 
     db.commit()
     db.refresh(complaint)
+
+    return complaint
 
 
 @router.patch(
