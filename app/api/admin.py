@@ -6,6 +6,8 @@ from app.api.permissions import require_role
 from app.db.dependencies import get_db
 from app.models.user import User
 from app.schemas.user import UserResponse
+from app.schemas.user import UserResponse, UserStatusUpdate
+from fastapi import APIRouter, Depends, HTTPException
 
 
 router = APIRouter(
@@ -29,3 +31,32 @@ def get_all_users(
     )
 
     return users
+
+@router.patch(
+    "/users/{user_id}/status",
+    response_model=UserResponse,
+)
+def update_user_status(
+    user_id: int,
+    status_data: UserStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    user = (
+        db.query(User)
+        .filter(User.id == user_id)
+        .first()
+    )
+
+    if user is None:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found",
+        )
+
+    user.is_active = status_data.is_active
+
+    db.commit()
+    db.refresh(user)
+
+    return user

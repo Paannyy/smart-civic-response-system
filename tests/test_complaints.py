@@ -439,3 +439,117 @@ def test_authority_cannot_view_all_users(client, db):
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Insufficient permissions"
+
+def test_admin_can_change_user_status(client, db):
+    admin = User(
+        name="Status Admin",
+        email="statusadmin@example.com",
+        password_hash=hash_password("password123"),
+        role="admin",
+        is_active=True,
+    )
+
+    citizen = User(
+        name="Status Citizen",
+        email="statuscitizen@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    db.add_all([admin, citizen])
+    db.commit()
+    db.refresh(admin)
+    db.refresh(citizen)
+
+    token = create_access_token({"sub": str(admin.id)})
+
+    response = client.patch(
+        f"/admin/users/{citizen.id}/status",
+        headers={
+            "Authorization": f"Bearer {token}"
+        },
+        json={
+            "is_active": False
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["is_active"] is False
+
+    response = client.patch(
+        f"/admin/users/{citizen.id}/status",
+        headers={
+            "Authorization": f"Bearer {token}"
+        },
+        json={
+            "is_active": True
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["is_active"] is True
+
+
+def test_citizen_cannot_change_user_status(client, db):
+    citizen = User(
+        name="Blocked Status Citizen",
+        email="blockedstatus@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    target = User(
+        name="Target User",
+        email="targetstatus@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    db.add_all([citizen, target])
+    db.commit()
+    db.refresh(citizen)
+    db.refresh(target)
+
+    token = create_access_token({"sub": str(citizen.id)})
+
+    response = client.patch(
+        f"/admin/users/{target.id}/status",
+        headers={
+            "Authorization": f"Bearer {token}"
+        },
+        json={
+            "is_active": False
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Insufficient permissions"
+
+
+def test_inactive_user_cannot_access_protected_endpoint(client, db):
+    user = User(
+        name="Inactive User",
+        email="inactive@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=False,
+    )
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    token = create_access_token({"sub": str(user.id)})
+
+    response = client.get(
+        "/complaints/",
+        headers={
+            "Authorization": f"Bearer {token}"
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Inactive user"
