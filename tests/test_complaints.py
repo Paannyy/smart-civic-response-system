@@ -947,3 +947,206 @@ def test_no_matching_department_remains_pending(client, db):
 
     assert data["status"] == "pending"
     assert data["assigned_authority_id"] is None
+
+def test_authority_can_view_assigned_complaints(client, db):
+    citizen = User(
+        name="Assigned Citizen",
+        email="assignedcitizen@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    authority = User(
+        name="Assigned Authority",
+        email="assignedauthority@example.com",
+        password_hash=hash_password("password123"),
+        role="authority",
+        department="sanitation",
+        is_active=True,
+    )
+
+    complaint = Complaint(
+        title="Garbage complaint",
+        description="Garbage not collected.",
+        category="garbage",
+        priority="medium",
+        status="assigned",
+        citizen_id=1,
+        assigned_authority_id=2,
+    )
+
+    db.add_all([citizen, authority])
+    db.commit()
+
+    db.refresh(citizen)
+    db.refresh(authority)
+
+    complaint.citizen_id = citizen.id
+    complaint.assigned_authority_id = authority.id
+
+    db.add(complaint)
+    db.commit()
+
+    token = create_access_token({"sub": str(authority.id)})
+
+    response = client.get(
+        "/complaints/assigned",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]["assigned_authority_id"] == authority.id
+
+
+def test_authority_can_filter_assigned_complaints_by_status(client, db):
+    citizen = User(
+        name="Status Filter Citizen",
+        email="statusfiltercitizen@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    authority = User(
+        name="Status Filter Authority",
+        email="statusfilterauthority@example.com",
+        password_hash=hash_password("password123"),
+        role="authority",
+        department="sanitation",
+        is_active=True,
+    )
+
+    db.add_all([citizen, authority])
+    db.commit()
+
+    db.refresh(citizen)
+    db.refresh(authority)
+
+    complaints = [
+        Complaint(
+            title="Assigned garbage",
+            description="Garbage complaint.",
+            category="garbage",
+            priority="medium",
+            status="assigned",
+            citizen_id=citizen.id,
+            assigned_authority_id=authority.id,
+        ),
+        Complaint(
+            title="Resolved garbage",
+            description="Garbage complaint resolved.",
+            category="garbage",
+            priority="medium",
+            status="resolved",
+            citizen_id=citizen.id,
+            assigned_authority_id=authority.id,
+        ),
+    ]
+
+    db.add_all(complaints)
+    db.commit()
+
+    token = create_access_token({"sub": str(authority.id)})
+
+    response = client.get(
+        "/complaints/assigned?status_filter=resolved",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]["status"] == "resolved"
+
+
+def test_authority_can_filter_assigned_complaints_by_category(client, db):
+    citizen = User(
+        name="Category Filter Citizen",
+        email="categoryfiltercitizen@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    authority = User(
+        name="Category Filter Authority",
+        email="categoryfilterauthority@example.com",
+        password_hash=hash_password("password123"),
+        role="authority",
+        department="sanitation",
+        is_active=True,
+    )
+
+    db.add_all([citizen, authority])
+    db.commit()
+
+    db.refresh(citizen)
+    db.refresh(authority)
+
+    complaints = [
+        Complaint(
+            title="Garbage complaint",
+            description="Garbage issue.",
+            category="garbage",
+            priority="medium",
+            status="assigned",
+            citizen_id=citizen.id,
+            assigned_authority_id=authority.id,
+        ),
+        Complaint(
+            title="Water complaint",
+            description="Water issue.",
+            category="water",
+            priority="high",
+            status="assigned",
+            citizen_id=citizen.id,
+            assigned_authority_id=authority.id,
+        ),
+    ]
+
+    db.add_all(complaints)
+    db.commit()
+
+    token = create_access_token({"sub": str(authority.id)})
+
+    response = client.get(
+        "/complaints/assigned?category=garbage",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]["category"] == "garbage"
+
+
+def test_citizen_cannot_view_assigned_complaints(client, db):
+    citizen = User(
+        name="Unauthorized Citizen",
+        email="unauthorizedcitizen@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    db.add(citizen)
+    db.commit()
+    db.refresh(citizen)
+
+    token = create_access_token({"sub": str(citizen.id)})
+
+    response = client.get(
+        "/complaints/assigned",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 403

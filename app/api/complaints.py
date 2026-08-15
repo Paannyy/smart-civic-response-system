@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -89,20 +89,48 @@ def get_my_complaints(
     response_model=List[ComplaintResponse],
 )
 def get_assigned_complaints(
+    status_filter: str | None = Query(
+        default=None,
+        max_length=20,
+    ),
+    category: str | None = Query(
+        default=None,
+        max_length=50,
+    ),
+    priority: str | None = Query(
+        default=None,
+        max_length=20,
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(
         require_role("authority", "admin")
     ),
 ):
-    complaints = (
+    query = (
         db.query(Complaint)
         .filter(
             Complaint.assigned_authority_id == current_user.id
         )
-        .all()
     )
 
-    return complaints
+    if status_filter is not None:
+        query = query.filter(
+            Complaint.status == status_filter
+        )
+
+    if category is not None:
+        query = query.filter(
+            Complaint.category == category
+        )
+
+    if priority is not None:
+        query = query.filter(
+            Complaint.priority == priority
+        )
+
+    return query.order_by(
+        Complaint.created_at.desc()
+    ).all()
 
 
 @router.get(
