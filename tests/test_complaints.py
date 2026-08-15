@@ -352,3 +352,90 @@ def test_status_update_creates_history(client, db):
     assert len(history) == 1
     assert history[0].status == "in_progress"
     assert history[0].changed_by == authority.id
+
+def test_admin_can_view_all_users(client, db):
+    admin = User(
+        name="Test Admin",
+        email="testadmin@example.com",
+        password_hash=hash_password("password123"),
+        role="admin",
+        is_active=True,
+    )
+
+    citizen = User(
+        name="Test Citizen",
+        email="adminviewcitizen@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    db.add_all([admin, citizen])
+    db.commit()
+
+    token = create_access_token({"sub": str(admin.id)})
+
+    response = client.get(
+        "/admin/users",
+        headers={
+            "Authorization": f"Bearer {token}"
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 2
+    assert data[0]["role"] == "admin"
+    assert data[1]["role"] == "citizen"
+
+def test_citizen_cannot_view_all_users(client, db):
+    citizen = User(
+        name="Normal Citizen",
+        email="adminblockedcitizen@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    db.add(citizen)
+    db.commit()
+    db.refresh(citizen)
+
+    token = create_access_token({"sub": str(citizen.id)})
+
+    response = client.get(
+        "/admin/users",
+        headers={
+            "Authorization": f"Bearer {token}"
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Insufficient permissions"
+
+def test_authority_cannot_view_all_users(client, db):
+    authority = User(
+        name="Blocked Authority",
+        email="blockedauthority@example.com",
+        password_hash=hash_password("password123"),
+        role="authority",
+        is_active=True,
+    )
+
+    db.add(authority)
+    db.commit()
+    db.refresh(authority)
+
+    token = create_access_token({"sub": str(authority.id)})
+
+    response = client.get(
+        "/admin/users",
+        headers={
+            "Authorization": f"Bearer {token}"
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Insufficient permissions"
