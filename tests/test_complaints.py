@@ -719,3 +719,100 @@ def test_admin_can_filter_complaints_by_category(client, db):
 
     assert len(data) == 1
     assert data[0]["category"] == "garbage"
+
+def test_complaint_is_automatically_assigned(client, db):
+    citizen = User(
+        name="Auto Assign Citizen",
+        email="autoassigncitizen@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    authority = User(
+        name="Auto Assign Authority",
+        email="autoassignauthority@example.com",
+        password_hash=hash_password("password123"),
+        role="authority",
+        is_active=True,
+    )
+
+    db.add_all([citizen, authority])
+    db.commit()
+    db.refresh(citizen)
+    db.refresh(authority)
+
+    token = create_access_token({"sub": str(citizen.id)})
+
+    response = client.post(
+        "/complaints/",
+        headers={
+            "Authorization": f"Bearer {token}"
+        },
+        json={
+            "title": "Garbage collection problem",
+            "description": "Garbage has not been collected in our area.",
+            "category": "garbage",
+            "priority": "medium",
+        },
+    )
+
+    assert response.status_code == 201
+
+    data = response.json()
+
+    assert data["status"] == "assigned"
+    assert data["assigned_authority_id"] == authority.id
+
+def test_automatic_assignment_creates_history(client, db):
+    citizen = User(
+        name="History Auto Citizen",
+        email="historyautocitizen@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    authority = User(
+        name="History Auto Authority",
+        email="historyautoauthority@example.com",
+        password_hash=hash_password("password123"),
+        role="authority",
+        is_active=True,
+    )
+
+    db.add_all([citizen, authority])
+    db.commit()
+    db.refresh(citizen)
+    db.refresh(authority)
+
+    token = create_access_token({"sub": str(citizen.id)})
+
+    response = client.post(
+        "/complaints/",
+        headers={
+            "Authorization": f"Bearer {token}"
+        },
+        json={
+            "title": "Water problem",
+            "description": "There is a water problem in our area.",
+            "category": "water",
+            "priority": "medium",
+        },
+    )
+
+    assert response.status_code == 201
+
+    complaint_id = response.json()["id"]
+
+    history = (
+        db.query(ComplaintStatusHistory)
+        .filter(
+            ComplaintStatusHistory.complaint_id == complaint_id
+        )
+        .all()
+    )
+
+    assert len(history) == 1
+    assert history[0].status == "assigned"
+    assert history[0].changed_by == citizen.id

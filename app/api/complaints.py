@@ -17,7 +17,7 @@ from app.schemas.complaint import (
     ComplaintAssignment,
     ComplaintHistoryResponse,
 )
-
+from app.services.complaint_assignment import auto_assign_complaint
 
 ALLOWED_STATUS_TRANSITIONS = {
     "pending": {"assigned"},
@@ -53,6 +53,14 @@ def create_complaint(
     )
 
     db.add(complaint)
+    db.flush()
+
+    auto_assign_complaint(
+        complaint=complaint,
+        db=db,
+        changed_by=current_user.id,
+    )
+
     db.commit()
     db.refresh(complaint)
 
