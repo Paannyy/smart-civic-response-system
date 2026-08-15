@@ -17,6 +17,7 @@ class UserResponse(BaseModel):
     name: str
     email: EmailStr
     role: str
+    department: str | None
     is_active: bool
 
     model_config = {

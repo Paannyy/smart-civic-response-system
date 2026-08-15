@@ -730,12 +730,13 @@ def test_complaint_is_automatically_assigned(client, db):
     )
 
     authority = User(
-        name="Auto Assign Authority",
-        email="autoassignauthority@example.com",
-        password_hash=hash_password("password123"),
-        role="authority",
-        is_active=True,
-    )
+    name="Auto Assign Authority",
+    email="autoassignauthority@example.com",
+    password_hash=hash_password("password123"),
+    role="authority",
+    department="sanitation",
+    is_active=True,
+)
 
     db.add_all([citizen, authority])
     db.commit()
@@ -778,6 +779,7 @@ def test_automatic_assignment_creates_history(client, db):
         email="historyautoauthority@example.com",
         password_hash=hash_password("password123"),
         role="authority",
+        department="water",
         is_active=True,
     )
 
@@ -816,3 +818,132 @@ def test_automatic_assignment_creates_history(client, db):
     assert len(history) == 1
     assert history[0].status == "assigned"
     assert history[0].changed_by == citizen.id
+
+def test_garbage_complaint_is_assigned_to_sanitation_authority(client, db):
+    citizen = User(
+        name="Department Citizen",
+        email="departmentcitizen@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    sanitation_authority = User(
+        name="Sanitation Authority",
+        email="sanitationauthority@example.com",
+        password_hash=hash_password("password123"),
+        role="authority",
+        department="sanitation",
+        is_active=True,
+    )
+
+    db.add_all([citizen, sanitation_authority])
+    db.commit()
+    db.refresh(citizen)
+    db.refresh(sanitation_authority)
+
+    token = create_access_token({"sub": str(citizen.id)})
+
+    response = client.post(
+        "/complaints/",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "title": "Garbage department test",
+            "description": "Testing department based assignment.",
+            "category": "garbage",
+            "priority": "medium",
+        },
+    )
+
+    assert response.status_code == 201
+
+    data = response.json()
+
+    assert data["status"] == "assigned"
+    assert data["assigned_authority_id"] == sanitation_authority.id
+
+
+def test_unsupported_category_remains_pending(client, db):
+    citizen = User(
+        name="Unsupported Category Citizen",
+        email="unsupportedcategory@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    authority = User(
+        name="Sanitation Authority",
+        email="unsupportedauthority@example.com",
+        password_hash=hash_password("password123"),
+        role="authority",
+        department="sanitation",
+        is_active=True,
+    )
+
+    db.add_all([citizen, authority])
+    db.commit()
+    db.refresh(citizen)
+
+    token = create_access_token({"sub": str(citizen.id)})
+
+    response = client.post(
+        "/complaints/",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "title": "Unsupported category test",
+            "description": "Testing unsupported complaint category.",
+            "category": "other",
+            "priority": "medium",
+        },
+    )
+
+    assert response.status_code == 201
+
+    data = response.json()
+
+    assert data["status"] == "pending"
+    assert data["assigned_authority_id"] is None
+
+
+def test_no_matching_department_remains_pending(client, db):
+    citizen = User(
+        name="No Department Citizen",
+        email="nodepartmentcitizen@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=True,
+    )
+
+    authority = User(
+        name="Water Authority",
+        email="waterauthority@example.com",
+        password_hash=hash_password("password123"),
+        role="authority",
+        department="water",
+        is_active=True,
+    )
+
+    db.add_all([citizen, authority])
+    db.commit()
+    db.refresh(citizen)
+
+    token = create_access_token({"sub": str(citizen.id)})
+
+    response = client.post(
+        "/complaints/",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "title": "Electricity department test",
+            "description": "Testing missing matching department.",
+            "category": "electricity",
+            "priority": "medium",
+        },
+    )
+
+    assert response.status_code == 201
+
+    data = response.json()
+
+    assert data["status"] == "pending"
+    assert data["assigned_authority_id"] is None

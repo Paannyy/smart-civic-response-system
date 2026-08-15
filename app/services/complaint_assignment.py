@@ -5,11 +5,11 @@ from app.models.user import User
 from app.models.complaint_history import ComplaintStatusHistory
 
 
-SUPPORTED_CATEGORIES = {
-    "garbage",
-    "electricity",
-    "water",
-    "roads",
+CATEGORY_TO_DEPARTMENT = {
+    "garbage": "sanitation",
+    "water": "water",
+    "electricity": "electrical",
+    "roads": "public_works",
 }
 
 
@@ -19,13 +19,18 @@ def auto_assign_complaint(
     changed_by: int,
 ) -> User | None:
 
-    if complaint.category not in SUPPORTED_CATEGORIES:
+    department = CATEGORY_TO_DEPARTMENT.get(
+        complaint.category
+    )
+
+    if department is None:
         return None
 
     authority = (
         db.query(User)
         .filter(
             User.role == "authority",
+            User.department == department,
             User.is_active.is_(True),
         )
         .order_by(User.id.asc())

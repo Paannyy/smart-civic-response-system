@@ -26,6 +26,10 @@ class User(Base):
         nullable=False,
         default="citizen"
     )
+    department: Mapped[str | None] = mapped_column(
+    String(50),
+    nullable=True,
+)
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
