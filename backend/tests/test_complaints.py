@@ -126,6 +126,27 @@ def test_login_returns_access_token(client):
     assert data["token_type"] == "bearer"
 
 
+def test_authenticated_user_can_get_profile(client):
+    registration = client.post(
+        "/auth/register",
+        json={
+            "name": "Profile Citizen",
+            "email": "profile@example.com",
+            "password": "password123",
+        },
+    )
+
+    token = create_access_token({"sub": str(registration.json()["id"])})
+    response = client.get(
+        "/auth/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["email"] == "profile@example.com"
+    assert response.json()["role"] == "citizen"
+
+
 def test_login_with_wrong_password_returns_401(client):
     client.post(
         "/auth/register",
