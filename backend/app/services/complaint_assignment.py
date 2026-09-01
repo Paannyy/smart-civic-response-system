@@ -1,3 +1,4 @@
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.complaint import Complaint
@@ -12,28 +13,35 @@ CATEGORY_TO_DEPARTMENT = {
     "roads": "public_works",
 }
 
+ACTIVE_WORKLOAD_STATUSES = ("assigned", "in_progress")
+
 
 def auto_assign_complaint(
     complaint: Complaint,
     db: Session,
     changed_by: int,
 ) -> User | None:
-
-    department = CATEGORY_TO_DEPARTMENT.get(
-        complaint.category
-    )
+    department = CATEGORY_TO_DEPARTMENT.get(complaint.category)
 
     if department is None:
         return None
 
+    workload_count = func.count(Complaint.id).label("workload")
+
     authority = (
         db.query(User)
+        .outerjoin(
+            Complaint,
+            (Complaint.assigned_authority_id == User.id)
+            & (Complaint.status.in_(ACTIVE_WORKLOAD_STATUSES)),
+        )
         .filter(
             User.role == "authority",
             User.department == department,
             User.is_active.is_(True),
         )
-        .order_by(User.id.asc())
+        .group_by(User.id)
+        .order_by(workload_count.asc(), User.id.asc())
         .first()
     )
 

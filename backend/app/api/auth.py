@@ -2,8 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
-
-
+from app.core.rate_limiter import rate_limit_auth
 from app.core.security import (
     hash_password,
     verify_password,
@@ -17,10 +16,6 @@ from app.schemas.user import (
     UserLogin,
     TokenResponse,
 )
-
-
-
-
 
 router = APIRouter(
     prefix="/auth",
@@ -43,6 +38,7 @@ def get_me(
     "/register",
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit_auth)],
 )
 def register_user(
     user_data: UserCreate,
@@ -79,6 +75,7 @@ def register_user(
 @router.post(
     "/login",
     response_model=TokenResponse,
+    dependencies=[Depends(rate_limit_auth)],
 )
 def login_user(
     user_data: UserLogin,

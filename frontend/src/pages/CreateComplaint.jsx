@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createComplaint } from "../services/api";
+import { createComplaint, uploadAttachment } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 
 export default function CreateComplaint({ onCreated }) {
@@ -10,6 +10,7 @@ export default function CreateComplaint({ onCreated }) {
     category: "garbage",
     priority: "medium",
   });
+  const [file, setFile] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -20,6 +21,19 @@ export default function CreateComplaint({ onCreated }) {
     });
   };
 
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const selected = e.target.files[0];
+      if (selected.size > 5 * 1024 * 1024) {
+        setError("File size must be under 5MB.");
+        setFile(null);
+        return;
+      }
+      setError("");
+      setFile(selected);
+    }
+  };
+
   const submit = async (event) => {
     event.preventDefault();
     setError("");
@@ -27,12 +41,22 @@ export default function CreateComplaint({ onCreated }) {
 
     try {
       const complaint = await createComplaint(form, token);
+
+      if (file) {
+        try {
+          await uploadAttachment(complaint.id, file, token);
+        } catch (uploadErr) {
+          console.error("Attachment upload failed:", uploadErr);
+        }
+      }
+
       setForm({
         title: "",
         description: "",
         category: "garbage",
         priority: "medium",
       });
+      setFile(null);
       onCreated(complaint);
     } catch (err) {
       setError(err.message);
@@ -99,6 +123,20 @@ export default function CreateComplaint({ onCreated }) {
             placeholder="Tell us where the issue is and what needs attention."
             required
           />
+        </label>
+
+        <label className="full-width">
+          Supporting Evidence (Optional JPG, PNG, PDF &lt; 5MB)
+          <input
+            type="file"
+            accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+            onChange={handleFileChange}
+          />
+          {file && (
+            <small className="muted" style={{ display: "block", marginTop: "4px" }}>
+              Selected: {file.name} ({(file.size / 1024).toFixed(1)} KB)
+            </small>
+          )}
         </label>
 
         <div className="full-width actions">

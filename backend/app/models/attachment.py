@@ -11,8 +11,8 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
-class ComplaintStatusHistory(Base):
-    __tablename__ = "complaint_status_history"
+class Attachment(Base):
+    __tablename__ = "attachments"
 
     id: Mapped[int] = mapped_column(
         Integer,
@@ -23,15 +23,34 @@ class ComplaintStatusHistory(Base):
     complaint_id: Mapped[int] = mapped_column(
         ForeignKey("complaints.id"),
         nullable=False,
+        index=True,
     )
 
-    status: Mapped[str] = mapped_column(
-        String(20),
+    uploaded_by: Mapped[int] = mapped_column(
+        ForeignKey("users.id"),
+        nullable=False,
+        index=True,
+    )
+
+    original_filename: Mapped[str] = mapped_column(
+        String(255),
         nullable=False,
     )
 
-    changed_by: Mapped[int] = mapped_column(
-        ForeignKey("users.id"),
+    stored_filename: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    content_type: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+
+    file_size: Mapped[int] = mapped_column(
+        Integer,
         nullable=False,
     )
 
@@ -44,10 +63,11 @@ class ComplaintStatusHistory(Base):
     complaint: Mapped["Complaint"] = relationship(
         "Complaint",
         foreign_keys=[complaint_id],
-        back_populates="status_history",
+        back_populates="attachments",
     )
-    changed_by_user: Mapped["User"] = relationship(
+
+    uploader: Mapped["User"] = relationship(
         "User",
-        foreign_keys=[changed_by],
-        back_populates="status_changes",
+        foreign_keys=[uploaded_by],
+        back_populates="attachments",
     )

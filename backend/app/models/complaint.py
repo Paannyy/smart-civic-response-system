@@ -1,9 +1,16 @@
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import List, Optional, TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
+
+if TYPE_CHECKING:
+    from app.models.attachment import Attachment
+    from app.models.complaint_history import ComplaintStatusHistory
+    from app.models.notification import Notification
+    from app.models.user import User
 
 
 class Complaint(Base):
@@ -54,13 +61,43 @@ class Complaint(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
+    )
+
+    citizen: Mapped["User"] = relationship(
+        "User",
+        foreign_keys=[citizen_id],
+        back_populates="created_complaints",
+    )
+    assigned_authority: Mapped[Optional["User"]] = relationship(
+        "User",
+        foreign_keys=[assigned_authority_id],
+        back_populates="assigned_complaints",
+    )
+    status_history: Mapped[List["ComplaintStatusHistory"]] = relationship(
+        "ComplaintStatusHistory",
+        back_populates="complaint",
+        cascade="all, delete-orphan",
+        order_by="ComplaintStatusHistory.created_at.asc()",
+    )
+    notifications: Mapped[List["Notification"]] = relationship(
+        "Notification",
+        foreign_keys="Notification.complaint_id",
+        back_populates="complaint",
+        cascade="all, delete-orphan",
+    )
+    attachments: Mapped[List["Attachment"]] = relationship(
+        "Attachment",
+        foreign_keys="Attachment.complaint_id",
+        back_populates="complaint",
+        cascade="all, delete-orphan",
+        order_by="Attachment.created_at.asc()",
     )

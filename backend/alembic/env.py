@@ -7,6 +7,8 @@ from app.db.database import Base, Settings, engine
 from app.models.user import User
 from app.models.complaint import Complaint
 from app.models.complaint_history import ComplaintStatusHistory
+from app.models.notification import Notification
+from app.models.attachment import Attachment
 
 
 # Alembic Config object

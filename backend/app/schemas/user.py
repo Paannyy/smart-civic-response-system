@@ -1,4 +1,5 @@
-from pydantic import BaseModel, EmailStr, Field
+from typing import List
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class UserCreate(BaseModel):
@@ -20,14 +21,20 @@ class UserResponse(BaseModel):
     department: str | None
     is_active: bool
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PaginatedUserResponse(BaseModel):
+    items: List[UserResponse]
+    total: int
+    limit: int
+    offset: int
 
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
+
 
 class UserStatusUpdate(BaseModel):
     is_active: bool

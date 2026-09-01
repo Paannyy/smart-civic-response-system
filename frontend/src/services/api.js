@@ -12,7 +12,7 @@ async function request(endpoint, options = {}) {
     response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers: {
-        "Content-Type": "application/json",
+        ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
         ...(options.headers || {}),
       },
     });
@@ -48,6 +48,14 @@ const filterQuery = (filters = {}) => {
   if (filters.status) params.set("status_filter", filters.status);
   if (filters.category) params.set("category", filters.category);
   if (filters.priority) params.set("priority", filters.priority);
+  if (filters.search) params.set("search", filters.search.trim());
+  if (filters.unread_only) params.set("unread_only", "true");
+  if (filters.limit !== undefined && filters.limit !== null) {
+    params.set("limit", filters.limit);
+  }
+  if (filters.offset !== undefined && filters.offset !== null) {
+    params.set("offset", filters.offset);
+  }
 
   const query = params.toString();
   return query ? `?${query}` : "";
@@ -77,13 +85,18 @@ export const createComplaint = (complaint, token) =>
     body: JSON.stringify(complaint),
   });
 
-export const getMyComplaints = (token) =>
-  request("/complaints/", {
+export const getMyComplaints = (token, filters) =>
+  request(`/complaints/${filterQuery(filters)}`, {
     headers: authorized(token),
   });
 
 export const getAssignedComplaints = (token, filters) =>
   request(`/complaints/assigned${filterQuery(filters)}`, {
+    headers: authorized(token),
+  });
+
+export const getComplaintById = (id, token) =>
+  request(`/complaints/${id}`, {
     headers: authorized(token),
   });
 
@@ -106,8 +119,8 @@ export const getComplaintHistory = (id, token) =>
     headers: authorized(token),
   });
 
-export const getUsers = (token) =>
-  request("/admin/users", {
+export const getUsers = (token, filters) =>
+  request(`/admin/users${filterQuery(filters)}`, {
     headers: authorized(token),
   });
 
@@ -120,5 +133,69 @@ export const updateUserStatus = (id, is_active, token) =>
 
 export const getAdminComplaints = (token, filters) =>
   request(`/admin/complaints${filterQuery(filters)}`, {
+    headers: authorized(token),
+  });
+
+export const getAdminAnalytics = (token) =>
+  request("/admin/analytics", {
+    headers: authorized(token),
+  });
+
+export const getNotifications = (token, filters) =>
+  request(`/notifications/${filterQuery(filters)}`, {
+    headers: authorized(token),
+  });
+
+export const markNotificationAsRead = (id, token) =>
+  request(`/notifications/${id}/read`, {
+    method: "PATCH",
+    headers: authorized(token),
+  });
+
+export const markAllNotificationsAsRead = (token) =>
+  request("/notifications/read-all", {
+    method: "PATCH",
+    headers: authorized(token),
+  });
+
+export const getComplaintAttachments = (complaintId, token) =>
+  request(`/complaints/${complaintId}/attachments`, {
+    headers: authorized(token),
+  });
+
+export const uploadAttachment = async (complaintId, file, token) => {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return request(`/complaints/${complaintId}/attachments`, {
+    method: "POST",
+    headers: authorized(token),
+    body: formData,
+  });
+};
+
+export const downloadAttachment = async (attachmentId, filename, token) => {
+  const res = await fetch(`${API_BASE_URL}/attachments/${attachmentId}`, {
+    headers: authorized(token),
+  });
+
+  if (!res.ok) {
+    throw new Error("Unable to download attachment");
+  }
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  a.remove();
+};
+
+export const deleteAttachment = (attachmentId, token) =>
+  request(`/attachments/${attachmentId}`, {
+    method: "DELETE",
     headers: authorized(token),
   });

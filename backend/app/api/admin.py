@@ -1,14 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from collections import defaultdict
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
-from typing import List, Optional
 
 from app.api.permissions import require_role
 from app.db.dependencies import get_db
-from app.models.user import User
 from app.models.complaint import Complaint
-from app.schemas.user import UserResponse, UserStatusUpdate
-from app.schemas.complaint import ComplaintResponse
+from app.models.user import User
+from app.schemas.analytics import AnalyticsResponse
+from app.schemas.complaint import PaginatedComplaintResponse
+from app.schemas.user import PaginatedUserResponse, UserResponse, UserStatusUpdate
+from app.services.complaint_assignment import CATEGORY_TO_DEPARTMENT
 
+ALL_CATEGORIES = ["garbage", "water", "electricity", "roads"]
+ALL_DEPARTMENTS = ["sanitation", "water", "electrical", "public_works"]
 
 router = APIRouter(
     prefix="/admin",
@@ -17,20 +23,117 @@ router = APIRouter(
 
 
 @router.get(
-    "/users",
-    response_model=List[UserResponse],
+    "/analytics",
+    response_model=AnalyticsResponse,
 )
-def get_all_users(
+def get_admin_analytics(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("admin")),
 ):
-    users = (
-        db.query(User)
-        .order_by(User.id.asc())
+    status_counts_query = (
+        db.query(Complaint.status, func.count(Complaint.id))
+        .group_by(Complaint.status)
+        .all()
+    )
+    status_counts = {status_name: count for status_name, count in status_counts_query}
+
+    pending = status_counts.get("pending", 0)
+    assigned = status_counts.get("assigned", 0)
+    in_progress = status_counts.get("in_progress", 0)
+    resolved = status_counts.get("resolved", 0)
+    total = pending + assigned + in_progress + resolved
+
+    category_counts_query = (
+        db.query(Complaint.category, func.count(Complaint.id))
+        .group_by(Complaint.category)
+        .all()
+    )
+    by_category = {cat: 0 for cat in ALL_CATEGORIES}
+    for cat, count in category_counts_query:
+        by_category[cat] = count
+
+    by_department = {dept: 0 for dept in ALL_DEPARTMENTS}
+    for cat, count in by_category.items():
+        dept = CATEGORY_TO_DEPARTMENT.get(cat, "other")
+        by_department[dept] = by_department.get(dept, 0) + count
+
+    resolved_complaints = (
+        db.query(Complaint)
+        .filter(Complaint.status == "resolved")
         .all()
     )
 
-    return users
+    dept_durations = defaultdict(list)
+    all_durations = []
+
+    for c in resolved_complaints:
+        if c.created_at and c.updated_at:
+            duration = (c.updated_at - c.created_at).total_seconds()
+            if duration >= 0:
+                all_durations.append(duration)
+                dept = CATEGORY_TO_DEPARTMENT.get(c.category, "other")
+                dept_durations[dept].append(duration)
+
+    avg_resolution_time = (
+        sum(all_durations) / len(all_durations) if all_durations else None
+    )
+
+    avg_by_department = {}
+    for dept in ALL_DEPARTMENTS:
+        durations = dept_durations.get(dept, [])
+        avg_by_department[dept] = (
+            sum(durations) / len(durations) if durations else 0.0
+        )
+
+    return {
+        "total_complaints": total,
+        "pending_complaints": pending,
+        "assigned_complaints": assigned,
+        "in_progress_complaints": in_progress,
+        "resolved_complaints": resolved,
+        "by_category": by_category,
+        "by_department": by_department,
+        "avg_resolution_time_seconds": avg_resolution_time,
+        "avg_resolution_time_by_department": avg_by_department,
+    }
+
+
+@router.get(
+    "/users",
+    response_model=PaginatedUserResponse,
+)
+def get_all_users(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    search: Optional[str] = Query(default=None, max_length=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    query = db.query(User)
+
+    if search:
+        search_term = f"%{search.strip()}%"
+        query = query.filter(
+            or_(
+                User.name.ilike(search_term),
+                User.email.ilike(search_term),
+            )
+        )
+
+    total = query.count()
+    items = (
+        query.order_by(User.id.asc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "items": items,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @router.patch(
@@ -71,36 +174,50 @@ def update_user_status(
 
 @router.get(
     "/complaints",
-    response_model=List[ComplaintResponse],
+    response_model=PaginatedComplaintResponse,
 )
 def get_all_complaints(
-    status_filter: Optional[str] = None,
-    category: Optional[str] = None,
-    priority: Optional[str] = None,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    status_filter: Optional[str] = Query(default=None, max_length=20),
+    category: Optional[str] = Query(default=None, max_length=50),
+    priority: Optional[str] = Query(default=None, max_length=20),
+    search: Optional[str] = Query(default=None, max_length=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("admin")),
 ):
     query = db.query(Complaint)
 
     if status_filter:
-        query = query.filter(
-            Complaint.status == status_filter
-        )
+        query = query.filter(Complaint.status == status_filter)
 
     if category:
-        query = query.filter(
-            Complaint.category == category
-        )
+        query = query.filter(Complaint.category == category)
 
     if priority:
-        query = query.filter(
-            Complaint.priority == priority
-        )
+        query = query.filter(Complaint.priority == priority)
 
-    complaints = (
-        query
-        .order_by(Complaint.id.asc())
+    if search:
+        search_term = f"%{search.strip()}%"
+        search_clauses = [
+            Complaint.title.ilike(search_term),
+            Complaint.description.ilike(search_term),
+        ]
+        if search.strip().isdigit():
+            search_clauses.append(Complaint.id == int(search.strip()))
+        query = query.filter(or_(*search_clauses))
+
+    total = query.count()
+    items = (
+        query.order_by(Complaint.created_at.desc(), Complaint.id.desc())
+        .offset(offset)
+        .limit(limit)
         .all()
     )
 
-    return complaints
+    return {
+        "items": items,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }

@@ -13,6 +13,7 @@ const titleCase = (value) =>
 export default function ComplaintTable({
   complaints,
   onHistory,
+  onViewDetails,
   onUpdate,
   onAssign,
   authorities = [],
@@ -140,12 +141,22 @@ export default function ComplaintTable({
                 )}
 
                 <td>
-                  <button
-                    className="text-button"
-                    onClick={() => onHistory(complaint)}
-                  >
-                    History
-                  </button>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    {onViewDetails && (
+                      <button
+                        className="text-button"
+                        onClick={() => onViewDetails(complaint.id)}
+                      >
+                        Details
+                      </button>
+                    )}
+                    <button
+                      className="text-button"
+                      onClick={() => onHistory(complaint)}
+                    >
+                      History
+                    </button>
+                  </div>
                 </td>
               </tr>
             );

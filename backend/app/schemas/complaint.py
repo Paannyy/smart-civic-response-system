@@ -1,8 +1,6 @@
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
-
-from pydantic import BaseModel, Field
-from typing import Literal
+from typing import List, Literal
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ComplaintCreate(BaseModel):
@@ -24,9 +22,14 @@ class ComplaintResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PaginatedComplaintResponse(BaseModel):
+    items: List[ComplaintResponse]
+    total: int
+    limit: int
+    offset: int
 
 
 class ComplaintStatusUpdate(BaseModel):
@@ -36,9 +39,11 @@ class ComplaintStatusUpdate(BaseModel):
         "in_progress",
         "resolved",
     ]
-    
+
+
 class ComplaintAssignment(BaseModel):
     authority_id: int
+
 
 class ComplaintHistoryResponse(BaseModel):
     id: int
