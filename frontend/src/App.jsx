@@ -7,7 +7,22 @@ import Dashboard from "./pages/Dashboard";
 export default function App() {
   const { isAuthenticated, isLoading } = useAuth();
   const [authView, setAuthView] = useState("login");
-  if (isLoading) return <main className="app-loading"><span className="spinner" /> Restoring your session…</main>;
-  if (isAuthenticated) return <Dashboard />;
-  return authView === "signup" ? <Signup onLogin={() => setAuthView("login")} /> : <Login onSignup={() => setAuthView("signup")} />;
+
+  if (isLoading) {
+    return (
+      <main className="app-loading">
+        <span className="spinner" /> Restoring your session…
+      </main>
+    );
+  }
+
+  if (isAuthenticated) {
+    return <Dashboard />;
+  }
+
+  if (authView === "signup") {
+    return <Signup onLogin={() => setAuthView("login")} />;
+  }
+
+  return <Login onSignup={() => setAuthView("signup")} />;
 }

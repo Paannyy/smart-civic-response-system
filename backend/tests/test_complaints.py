@@ -1293,3 +1293,57 @@ def test_admin_cannot_assign_complaint_to_wrong_department(client, db):
         "Authority department does not match "
         "complaint category: garbage"
     )
+
+
+def test_inactive_user_cannot_login(client, db):
+    user = User(
+        name="Deactivated Citizen",
+        email="deactivated@example.com",
+        password_hash=hash_password("password123"),
+        role="citizen",
+        is_active=False,
+    )
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    response = client.post(
+        "/auth/login",
+        json={
+            "email": "deactivated@example.com",
+            "password": "password123",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Inactive user"
+
+
+def test_admin_cannot_deactivate_self(client, db):
+    admin = User(
+        name="Self Deactivate Admin",
+        email="selfadmin@example.com",
+        password_hash=hash_password("password123"),
+        role="admin",
+        is_active=True,
+    )
+
+    db.add(admin)
+    db.commit()
+    db.refresh(admin)
+
+    token = create_access_token({"sub": str(admin.id)})
+
+    response = client.patch(
+        f"/admin/users/{admin.id}/status",
+        headers={
+            "Authorization": f"Bearer {token}"
+        },
+        json={
+            "is_active": False
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Admins cannot deactivate their own account"

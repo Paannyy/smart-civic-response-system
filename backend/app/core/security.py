@@ -5,7 +5,10 @@ from jose import jwt
 from pwdlib import PasswordHash
 
 
-SECRET_KEY = "change-this-later"
+from app.db.database import settings
+
+
+SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

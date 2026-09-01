@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
@@ -43,6 +43,12 @@ def update_user_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("admin")),
 ):
+    if user_id == current_user.id and not status_data.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Admins cannot deactivate their own account",
+        )
+
     user = (
         db.query(User)
         .filter(User.id == user_id)
@@ -51,7 +57,7 @@ def update_user_status(
 
     if user is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
 

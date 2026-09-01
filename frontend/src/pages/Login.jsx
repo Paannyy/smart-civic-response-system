@@ -2,7 +2,83 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login({ onSignup }) {
-  const { login, notice } = useAuth(); const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [error, setError] = useState(""); const [loading, setLoading] = useState(false);
-  const submit = async (event) => { event.preventDefault(); setError(""); setLoading(true); try { await login(email, password); } catch (err) { setError(err.message); } finally { setLoading(false); } };
-  return <main className="login-page"><section className="login-intro"><p className="eyebrow">SMART CIVIC RESPONSE</p><h1>Better neighbourhoods begin with a clear voice.</h1><p>Report an issue, follow its progress, and stay informed as local services respond.</p></section><section className="login-card"><div><p className="eyebrow">WELCOME BACK</p><h2>Sign in to your portal</h2><p className="muted">Use the account provided by your civic administrator.</p></div>{notice && <p className="notice">{notice}</p>}{error && <p className="alert" role="alert">{error}</p>}<form onSubmit={submit}><label>Email address<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required /></label><label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required /></label><button className="primary" disabled={loading}>{loading ? "Signing in…" : "Sign in"}</button></form><p className="muted">Don&apos;t have an account? <button type="button" className="text-button" onClick={onSignup}>Sign up</button></p></section></main>;
+  const { login, notice } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      await login(email, password);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <main className="login-page">
+      <section className="login-intro">
+        <p className="eyebrow">SMART CIVIC RESPONSE</p>
+        <h1>Better neighbourhoods begin with a clear voice.</h1>
+        <p>Report an issue, follow its progress, and stay informed as local services respond.</p>
+      </section>
+
+      <section className="login-card">
+        <div>
+          <p className="eyebrow">WELCOME BACK</p>
+          <h2>Sign in to your portal</h2>
+          <p className="muted">Use the account provided by your civic administrator.</p>
+        </div>
+
+        {notice && <p className="notice">{notice}</p>}
+        {error && (
+          <p className="alert" role="alert">
+            {error}
+          </p>
+        )}
+
+        <form onSubmit={submit}>
+          <label>
+            Email address
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              required
+            />
+          </label>
+
+          <label>
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </label>
+
+          <button className="primary" disabled={loading}>
+            {loading ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+
+        <p className="muted">
+          Don&apos;t have an account?{" "}
+          <button type="button" className="text-button" onClick={onSignup}>
+            Sign up
+          </button>
+        </p>
+      </section>
+    </main>
+  );
 }
